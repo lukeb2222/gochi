@@ -7,6 +7,19 @@ function init(){if(!getApps().length){if(!process.env.FIREBASE_SERVICE_ACCOUNT)t
 const respond=(status,body)=>({statusCode:status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'},body:JSON.stringify(body)});
 exports.handler=async event=>{if(event.httpMethod!=='POST')return respond(405,{ok:false,error:'POST required'});try{let db=init(),token=event.headers.authorization?.replace(/^Bearer /i,'');if(!token)return respond(401,{ok:false,error:'Sign in first'});let verified=await getAuth().verifyIdToken(token),uid=verified.uid,body=JSON.parse(event.body||'{}');let userRef=db.collection('users').doc(uid),user=await userRef.get();
  if(body.action==='issue-invite'){if(verified.email!=='lukebalyasny.11@gmail.com'||verified.email_verified!==true||!user.exists||user.data().banned)return respond(403,{ok:false,error:'Creator only'});let email=String(body.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return respond(400,{ok:false,error:'Enter a valid email'});let code=randomBytes(20).toString('hex');await db.collection('invites').doc(code).create({email,createdBy:uid,createdAt:FieldValue.serverTimestamp()});return respond(200,{ok:true,code,email})}
+ if(body.action==='set-shared-invite'){
+  if(verified.email!=='lukebalyasny.11@gmail.com'||verified.email_verified!==true||!user.exists||user.data().banned)return respond(403,{ok:false,error:'Creator only'});
+  let code=String(body.code||'').trim();if(!/^[A-Za-z0-9]{8,40}$/.test(code))return respond(400,{ok:false,error:'Code must be 8-40 letters or numbers'});
+  await db.collection('invites').doc(code).set({type:'shared',createdBy:uid,createdAt:FieldValue.serverTimestamp()});return respond(200,{ok:true,code})
+ }
+ if(body.action==='join-with-code'){
+  if(user.exists)return respond(409,{ok:false,error:'Account already joined'});
+  if(verified.email_verified!==true||!verified.email)return respond(403,{ok:false,error:'Use a verified Google account'});
+  let code=String(body.code||'').trim(),name=String(body.name||'').trim().slice(0,30);
+  if(!/^[A-Za-z0-9]{8,40}$/.test(code)||name.length<2)return respond(400,{ok:false,error:'Invalid code or name'});
+  let invite=await db.collection('invites').doc(code).get();if(!invite.exists||invite.data().type!=='shared')return respond(403,{ok:false,error:'Welcome code not accepted'});
+  await userRef.create({name,avatar:{skin:0,hair:0,hat:'',outfit:'',accessory:'',background:'',badge:''},credits:30,points:0,inventory:[],friends:[],pending:[],role:'member',banned:false,inviteCode:code,createdAt:FieldValue.serverTimestamp()});return respond(200,{ok:true})
+ }
  if(!user.exists||user.data().banned)return respond(403,{ok:false,error:'Account unavailable'});
  if(body.action==='join-room'){let code=String(body.code||'');if(!/^[a-f0-9]{18}$/.test(code))return respond(400,{ok:false,error:'Invalid space code'});let ref=db.collection('rooms').doc(code);let snap=await ref.get();if(!snap.exists||snap.data().type!=='private'||snap.data().code!==code)return respond(404,{ok:false,error:'Space not found'});await ref.update({members:FieldValue.arrayUnion(uid)});return respond(200,{ok:true,name:snap.data().name})}
  if(body.action==='claim-points'){
