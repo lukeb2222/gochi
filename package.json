@@ -1,0 +1,17 @@
+{
+  "name": "gochi",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "firebase": "^11.10.0",
+    "lucide": "^0.468.0",
+    "firebase-admin": "^13.4.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.0"
+  }
+}
