@@ -1,6 +1,7 @@
 # Gochi
-Invite-only community prototype. Google sign-in, Firestore live chat, private groups and DMs, emoji, reactions, short voice memos and compressed image messages, friends, avatars, virtual credits and shop, events, and a basic text-review queue.
 
-Build with `npm install && npm run build`. Deploy `dist` on Netlify. Firebase public web configuration is in `src.js`; never add service credentials to source control.
+Early invite-only community prototype. Google sign-in, Firestore chat, spaces and DMs, reactions, short voice notes and compressed images, friends, avatars, virtual credits and a shop, and events.
 
-This is an early prototype, not a child-safety-certified platform. The phrase filter is NOT AI moderation and does not screen images or audio. Do not invite children into an unsupervised community until stronger moderation, reporting, and privacy review are in place. `LB` and `bazboy` are weak, guessable codes, not safe authentication. Admin rights need Google identity plus server-enforced permissions. Baz's verified Google email is needed. No real-money gambling, buying credits, credit grants, bans, or cash-out exists. Firebase project: gochi-6be0e.
+Build: `npm install && npm run build`. Deploy `dist` on Netlify with Functions from `netlify/functions`. The Firebase web config in `src.js` is public; keep Firebase service-account credentials and administrator codes out of the repository. Set those server-side values in Netlify environment settings.
+
+Not ready for children or an unsupervised public launch. The phrase filter is basic, not AI moderation; it misses images, audio and many harmful messages. Privacy rules and admin permissions need a thorough review. Credits and points are virtual only, with no real-money purchases or cash-out.
