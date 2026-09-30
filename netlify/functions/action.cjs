@@ -19,9 +19,29 @@ exports.handler=async event=>{if(event.httpMethod!=='POST')return respond(405,{o
   let code=String(body.code||'').trim(),name=String(body.name||'').trim().slice(0,30);
   if(!/^[A-Za-z0-9]{8,40}$/.test(code)||name.length<2)return respond(400,{ok:false,error:'Invalid code or name'});
   let invite=await db.collection('invites').doc(code).get();if(!invite.exists||invite.data().type!=='shared')return respond(403,{ok:false,error:'Welcome code not accepted'});
-  await userRef.create({name,avatar:{skin:0,hair:0,hat:'',outfit:'',accessory:'',background:'',badge:''},credits:30,points:0,inventory:[],friends:[],pending:[],role:'member',banned:false,inviteCode:code,createdAt:FieldValue.serverTimestamp()});return respond(200,{ok:true})
+  let result=await db.runTransaction(async tx=>{
+   let config=db.collection('settings').doc('vip'),state=await tx.get(config),old=[];
+   if(!state.exists){let users=await tx.get(db.collection('users').orderBy('createdAt'));old=users.docs.filter(d=>d.data().role==='member').sort((a,b)=>(a.data().createdAt?.toMillis?.()||0)-(b.data().createdAt?.toMillis?.()||0));}
+   let current=await tx.get(userRef);if(current.exists)throw Error('Account already joined');
+   let slot=state.exists?state.data().awarded||0:Math.min(old.length,5),rank=slot<5?slot+1:null;
+   if(!state.exists){for(let i=0;i<Math.min(old.length,5);i++)tx.update(old[i].ref,{vip:true,vipRank:i+1});tx.set(config,{awarded:Math.min(5,slot+(rank?1:0))})}
+   else if(rank)tx.update(config,{awarded:rank});
+   tx.create(userRef,{name,avatar:{skin:0,hair:0,hat:'',outfit:'',accessory:'',background:'',badge:''},credits:30,points:0,inventory:[],friends:[],pending:[],role:'member',banned:false,inviteCode:code,createdAt:FieldValue.serverTimestamp(),vip:!!rank,...(rank?{vipRank:rank}:{})});return rank
+  });return respond(200,{ok:true,vipRank:result})
  }
  if(!user.exists||user.data().banned)return respond(403,{ok:false,error:'Account unavailable'});
+ if(body.action==='vip-status'){
+  let config=db.collection('settings').doc('vip'),state=await config.get();
+  if(!state.exists){await db.runTransaction(async tx=>{let current=await tx.get(config);if(current.exists)return;let all=await tx.get(db.collection('users').orderBy('createdAt'));let members=all.docs.filter(d=>d.data().role==='member').sort((a,b)=>(a.data().createdAt?.toMillis?.()||0)-(b.data().createdAt?.toMillis?.()||0));for(let i=0;i<Math.min(5,members.length);i++)tx.update(members[i].ref,{vip:true,vipRank:i+1});tx.set(config,{awarded:Math.min(5,members.length)})})}
+  return respond(200,{ok:true})
+ }
+ if(body.action==='vip-set'){
+  if(verified.email!=='lukebalyasny.11@gmail.com'||verified.email_verified!==true||user.data().role!=='admin')return respond(403,{ok:false,error:'Creator only'});
+  let target=String(body.userId||''),active=body.active;
+  if(!/^[A-Za-z0-9_-]{1,128}$/.test(target)||typeof active!=='boolean')return respond(400,{ok:false,error:'Invalid VIP change'});
+  let ref=db.collection('users').doc(target),snap=await ref.get();if(!snap.exists||snap.data().role!=='member')return respond(404,{ok:false,error:'Member not found'});
+  await ref.update({vip:active});return respond(200,{ok:true})
+ }
  if(body.action==='push-register' || body.action==='push-remove'){
   let token=String(body.token||'');
   if(token.length<80||token.length>4096||!/^[A-Za-z0-9:_-]+$/.test(token))return respond(400,{ok:false,error:'Invalid device token'});
