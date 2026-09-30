@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build"
+    "build": "vite build && cp firebase-messaging-sw.js dist/firebase-messaging-sw.js"
   },
   "dependencies": {
     "firebase": "^11.10.0",
