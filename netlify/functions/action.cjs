@@ -30,6 +30,14 @@ exports.handler=async event=>{if(event.httpMethod!=='POST')return respond(405,{o
   });return respond(200,{ok:true,vipRank:result})
  }
  if(!user.exists||user.data().banned)return respond(403,{ok:false,error:'Account unavailable'});
+ if(body.action==='push-test-status' || body.action==='push-test-send'){
+  if(verified.email!=='lukebalyasny.11@gmail.com'||verified.email_verified!==true||user.data().role!=='admin')return respond(403,{ok:false,error:'Creator only'});
+  let snap=await userRef.collection('pushTokens').limit(5).get();
+  if(body.action==='push-test-status')return respond(200,{ok:true,devices:snap.size});
+  if(snap.empty)return respond(404,{ok:false,error:'No opted-in device yet'});
+  let result=await getMessaging().sendEachForMulticast({tokens:snap.docs.map(d=>d.data().token),notification:{title:'Gochi notification test',body:'If you can see this, browser push is reaching your device.'},webpush:{fcmOptions:{link:'https://gochi-world.netlify.app/'}}});
+  return respond(200,{ok:true,sent:result.successCount,failed:result.failureCount,errors:result.responses.filter(r=>!r.success).map(r=>r.error?.code||'unknown')});
+ }
  if(body.action==='vip-status'){
   let config=db.collection('settings').doc('vip'),state=await config.get();
   if(!state.exists){await db.runTransaction(async tx=>{let current=await tx.get(config);if(current.exists)return;let all=await tx.get(db.collection('users').orderBy('createdAt'));let members=all.docs.filter(d=>d.data().role==='member').sort((a,b)=>(a.data().createdAt?.toMillis?.()||0)-(b.data().createdAt?.toMillis?.()||0));for(let i=0;i<Math.min(5,members.length);i++)tx.update(members[i].ref,{vip:true,vipRank:i+1});tx.set(config,{awarded:Math.min(5,members.length)})})}
