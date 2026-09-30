@@ -30,3 +30,13 @@ input,textarea,select{background:#202a27;border-color:#45524a;color:var(--paper)
 
 .vip-title{display:inline-block;padding:2px 6px;border:1px solid #e4c35b;background:#493d1d;color:#ffe894;font-size:10px;font-weight:800;letter-spacing:.08em;vertical-align:middle;margin-left:5px;border-radius:3px}
 #push-toggle{font-size:11px;padding:7px;white-space:nowrap}.section-heading{gap:6px}@media(max-width:700px){#push-toggle{font-size:0;width:32px;height:32px;padding:3px}#push-toggle::first-letter{font-size:15px}}
+.rank-row{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid #41384f}
+.rank-row .rank-name{min-width:0;flex:1}
+.rank-row .rank-name strong,.rank-row .rank-name small{display:block;overflow:hidden;text-overflow:ellipsis}
+.rank-row .rank-name strong{font-size:13px}
+.rank-row .rank-name small{font-size:11px;color:#a9a0b9;margin-top:3px}
+.rank-num{width:34px;flex:none;text-align:center;font-size:15px;color:#a9a0b9;font-weight:700}
+.rank-score{flex:none;text-align:right}
+.rank-score b{display:block;font-size:16px}
+.rank-score small{font-size:11px;color:#a9a0b9}
+.rank-me{background:#2d2542;border:1px solid #4a3f6b;border-radius:12px;padding:10px 12px;margin:4px 0}
