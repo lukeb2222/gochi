@@ -16,8 +16,10 @@ const vapidKey='BI2pFBYYI8TOBOVVZa0C8Re30mecgUCxEPS6ZHcEKpiarohyslwRWpk_BK1md0Xg
 let messaging;
 async function enablePush(silent=false){
  try{
-  if(!await isSupported()||!('serviceWorker' in navigator)||!('Notification' in window))throw Error('This browser does not support push notifications.');
-  if(Notification.permission==='denied')throw Error('Notifications are blocked in browser settings.');
+  let ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),standalone=window.navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;
+  if(ios&&!standalone)throw Error('On iPhone and iPad: tap Share, then Add to Home Screen, open Gochi from the new icon, then turn on notifications there.');
+  if(!await isSupported()||!('serviceWorker' in navigator)||!('Notification' in window))throw Error('This browser cannot do push notifications. Try Chrome, Edge, Firefox or Safari on a computer or Android.');
+  if(Notification.permission==='denied')throw Error('Notifications are blocked for this site. Click the lock icon by the address bar, allow Notifications, then reload.');
   if(Notification.permission!=='granted'){
    if(silent)return;
    if(await Notification.requestPermission()!=='granted')throw Error('Notification permission was not granted.');
