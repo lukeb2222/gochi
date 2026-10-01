@@ -30,7 +30,7 @@ async function enablePush(silent=false){
   if(!token)throw Error('Could not register this device for push.');
   let result=await api('push-register',{token});if(!result.ok)throw Error(result.error||'Could not save notification setting.');
   localStorage.setItem('gochi-push-token',token);localStorage.setItem('gochi-push-user',S.user.uid);
-  onMessage(messaging,payload=>{if(S.user&&document.visibilityState==='visible')notify(payload.notification?.title+': '+payload.notification?.body)});
+  onMessage(messaging,payload=>{let t=payload.notification?.title||'Gochi',b=payload.notification?.body||'';if(S.user&&document.visibilityState==='visible')notify(t+': '+b);if(Notification.permission==='granted')registration.showNotification(t,{body:b,icon:'/favicon.ico',tag:payload.messageId||undefined,data:{link:payload.fcmOptions?.link||payload.data?.link||'/'}}).catch(e=>console.warn('Show notification:',e))});
   if(!silent)notify('Notifications are on for this device.');
   let button=$('#push-toggle');if(button)button.textContent='🔔 Notifications on';
  }catch(e){if(!silent){let code=e.code||e.name||'',msg=String(e.message||''),hint=/push service|AbortError|subscribe/i.test(code+' '+msg)?' Chrome could not reach its push service. Make sure you are not in Incognito, and that Chrome Settings > Privacy and security > Site settings > Notifications allows this site, then try again.':'';notify(msg.startsWith('Firebase:')||msg.startsWith('Messaging:')||hint?'Could not enable notifications ('+(code||'unknown error')+').'+hint:msg||'Could not enable notifications.')}console.warn('Push:',e)}
