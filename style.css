@@ -40,3 +40,4 @@ input,textarea,select{background:#202a27;border-color:#45524a;color:var(--paper)
 .rank-score b{display:block;font-size:16px}
 .rank-score small{font-size:11px;color:#a9a0b9}
 .rank-me{background:#2d2542;border:1px solid #4a3f6b;border-radius:12px;padding:10px 12px;margin:4px 0}
+.invite-link{display:flex;gap:8px;margin:10px 0}.invite-link input{flex:1;min-width:0}.rank-grant{margin-left:10px;padding:6px 10px;font-size:12px;white-space:nowrap}
