@@ -12,7 +12,7 @@ export function installCards(ctx){
  if(!document.getElementById('cardcss'))document.head.insertAdjacentHTML('beforeend','<style id="cardcss">'+CARDCSS+'</style>');
  const {S,$,esc,notify}=ctx;
  const NAMES={war:'War',hearts:'Hearts',poker:'Poker'};
- const AVAILABLE=['war','hearts'];
+ const AVAILABLE=['war','hearts','poker'];
  async function capi(action,body){let token=await S.user.getIdToken();let r=await fetch('/.netlify/functions/cards',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...body})});return r.json()}
  const card=(c,cls='')=>c==null?'':c<0?`<span class="pc back ${cls}"></span>`:`<span class="pc ${Math.floor(c/13)%2?'red':'blk'} ${cls}"><b>${RANKS[c%13]}</b>${SUITS[Math.floor(c/13)]}</span>`;
  function lobbyHTML(){
@@ -48,6 +48,7 @@ export function installCards(ctx){
   if(v.status==='invited')return `<div class="cg-banner">Waiting for the other player to accept…</div>`;
   if(v.status!=='done')return '';
   let got=(v.result?.payouts||[])[v.seat]||0,net=got-v.stake*(v.type==='poker'?13:1);
+  if(v.type==='poker'){let esc=13*v.stake,net=got-esc;return `<div class="cg-banner ${net>0?'win':net===0?'draw':'loss'}">${net>0?`You won ${net} play points.`:net===0?'Even. You broke even.':`You lost ${-net} play points.`}${v.game&&v.game.names?` (You: ${v.game.names[0]}, them: ${v.game.names[1]})`:v.game&&v.game.folded!=null?(v.game.folded===v.seat?' You folded.':' They folded.'):''}</div>`}
   if(v.type==='hearts')return `<div class="cg-banner ${got>v.stake?'win':got===v.stake?'draw':'loss'}">${got>v.stake?`You won! Paid ${got} play points.`:got===v.stake?`Second place. Stake returned (${got}).`:`You lost. ${v.stake} play points gone.`}</div>`;
   return `<div class="cg-banner ${got>v.stake?'win':got===v.stake?'draw':'loss'}">${got>v.stake?`You won! Paid ${got} play points.`:got===v.stake?`Draw. Stake returned (${got}).`:`You lost. ${v.stake} play points gone.`}</div>`}
  const R={};
@@ -74,6 +75,19 @@ export function installCards(ctx){
    if(g.phase==='play'&&g.turn===g.seat&&g.legal.includes(c))await send({t:'play',card:c})});
   $('#hz-pass')&&($('#hz-pass').onclick=async()=>{let cs=S.cg.sel.slice();S.cg.sel=[];await send({t:'pass',cards:cs})});
  };
+
+ R.poker=v=>{let g=v.game,me=v.seat,opp=v.seats[1-me],myTurn=g.turn===me&&!g.over;
+  const ST=['Preflop','Flop','Turn','River'],A={fold:'Fold',check:'Check',call:'Call '+g.owed,bet:'Bet '+g.bet,raise:'Raise to '+(g.owed+g.bet)};
+  let board=[0,1,2,3,4].map(i=>g.board[i]!=null?card(g.board[i]):'<span class="pc back dim"></span>').join('');
+  let opph=g.oppHole?g.oppHole.map(c=>card(c)).join(''):card(-1)+card(-1);
+  let rec=g.recent&&g.recent.length?`<p class="muted">${g.recent.map(t=>(t.seat===me?'You':esc(opp.name))+' '+({fold:'folded',check:'checked',call:'called',bet:'bet',raise:'raised'})[t.t]).join(' · ')}</p>`:'';
+  let status=g.over?(g.folded!=null?(g.folded===me?'You folded.':esc(opp.name)+' folded.'):'Showdown.'):myTurn?(g.owed?`${g.owed} to call.`:'Your action.'):`Waiting for ${esc(opp.name)}…`;
+  let waitOther=!g.over&&!myTurn&&opp.uid;
+  return `<div class="hz"><p class="muted">Heads-up fixed-limit Hold'em · ${ST[Math.min(g.street,3)]} · one hand per game · bet size ${g.bet} · ${g.button===me?'you have the button':esc(opp.name)+' has the button'}</p>
+  <div class="hz-score"><div class="hz-p"><small>${esc(opp.name)}${opp.bot?' 🤖':''}</small><strong>${g.opp.put}</strong><small>in the pot</small></div><div class="hz-p"><small>POT</small><strong>${g.pot}</strong><small>play points</small></div><div class="hz-p"><small>You</small><strong>${g.you.put}</strong><small>in the pot</small></div></div>
+  <div class="cg-board hz-felt" style="flex-direction:column"><div>${opph}</div><div>${board}</div><div>${g.hole.map(c=>card(c)).join('')}</div></div>${rec}<p class="hz-status">${status}</p>
+  <div class="cg-acts">${myTurn?g.legal.map(t=>`<button class="${t==='fold'?'secondary':'primary'}" data-pk="${t}">${A[t]}</button>`).join(''):''}${waitOther?'<button class="secondary" id="cg-timeout">Opponent idle? Claim win</button>':''}</div></div>`};
+ BIND.poker=()=>{document.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>send({t:b.dataset.pk}))};
  function render(){
   let v=S.cg?.view;if(!v||S.tab!=='play')return;
   let opp=v.seats.filter((s,i)=>i!==v.seat).map(s=>(s.bot?'🤖 ':'')+s.name).join(', ');
