@@ -342,7 +342,7 @@ function view(s,seat){
  let o=1-seat,show=s.over&&s.showdown;
  return{type:'poker',over:s.over,street:s.street,board:s.board,hole:s.hole[seat],oppHole:show?s.hole[o]:null,
   pot:s.c[0]+s.c[1],you:{put:s.c[seat],bet:s.bets[seat]},opp:{put:s.c[o],bet:s.bets[o]},
-  unit:s.u,bet:BET[s.street]*s.u,button:s.button,turn:s.turn,legal:legal(s,seat),owed:Math.max(...s.bets)-s.bets[seat],
+  unit:s.u,bet:BET[Math.min(s.street,3)]*s.u,button:s.button,turn:s.turn,legal:legal(s,seat),owed:Math.max(...s.bets)-s.bets[seat],
   winner:s.winner,folded:s.folded,recent:s.recent,
   names:show?[handName(s.hv[seat]),handName(s.hv[o])]:null,seat};
 }
