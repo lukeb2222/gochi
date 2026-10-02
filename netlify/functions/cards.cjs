@@ -59,10 +59,171 @@ function forfeit(s,seat,stake){s.over=true;s.winner=1-seat;s.forfeit=seat;return
 module.exports={create,move,view,payouts,waitingOn,forfeit,MAX_ROUNDS};
 
 return module.exports})();
+__m.hearts=(function(){const module={exports:{}};
+const {shuffle,deck52}=__m.cardcore;
+// suits: 0 clubs, 1 diamonds, 2 spades, 3 hearts. rank 0..12 = 2..A
+const suit=c=>Math.floor(c/13),rank=c=>c%13,QS=36,TARGET=50;
+const pts=c=>suit(c)===3?1:c===QS?13:0;
+const DIRS=[1,3,2,0];
+function deal(s){
+ let d=shuffle(deck52());s.hands=[0,1,2,3].map(i=>d.slice(i*13,i*13+13).sort((a,b)=>a-b));
+ s.taken=[[],[],[],[]];s.trick=[];s.tricks=0;s.broken=false;s.played=[];s.passSel=[null,null,null,null];s.lastTrick=null;
+ s.passDir=DIRS[s.handNo%4];s.phase=s.passDir?'pass':'play';
+ if(s.phase==='play')startPlay(s);
+}
+function startPlay(s){s.phase='play';s.turn=s.hands.findIndex(h=>h.includes(0));s.leader=s.turn}
+function create(bots,stake){let s={handNo:0,scores:[0,0,0,0],handScores:null,over:false,winner:null,hist:[],recent:[]};deal(s);advance(s,bots);return s}
+function legal(s,seat){
+ let h=s.hands[seat];
+ if(!s.trick.length){
+  if(s.tricks===0)return h.includes(0)?[0]:h.slice();
+  let nh=h.filter(c=>suit(c)!==3);return(s.broken||!nh.length)?h.slice():nh;
+ }
+ let ls=suit(s.trick[0].card),f=h.filter(c=>suit(c)===ls);if(f.length)return f;
+ if(s.tricks===0){let np=h.filter(c=>suit(c)!==3&&c!==QS);if(np.length)return np}
+ return h.slice();
+}
+// --- bot ---
+function unseen(s,seat){let seen=new Set([...s.hands[seat],...s.played]);let u=[];for(let c=0;c<52;c++)if(!seen.has(c))u.push(c);return u}
+function botPass(s,seat){
+ let h=s.hands[seat],cnt=[0,0,0,0];h.forEach(c=>cnt[suit(c)]++);
+ let sc=h.map(c=>{let su=suit(c),r=rank(c),v=r;
+  if(su===2){if(c===QS)v=cnt[2]<=4?200:20;else if(r>=11)v=cnt[2]<=3?150+r:r}
+  else if(su===3){v=r>=8?60+r*2:r+(cnt[3]<=3?-10:8)}
+  else{v=r+(cnt[su]<=2?35-6*cnt[su]:0)}
+  return [v,c]});
+ sc.sort((a,b)=>b[0]-a[0]);return sc.slice(0,3).map(x=>x[1]);
+}
+function botPlay(s,seat){
+ let L=legal(s,seat);if(L.length===1)return L[0];
+ let un=unseen(s,seat),qsOut=un.includes(QS),h=s.hands[seat];
+ if(!s.trick.length){
+  let best=null,bv=1e9;
+  for(let c of L){
+   let su=suit(c),r=rank(c),lo=un.filter(x=>suit(x)===su&&rank(x)<r).length,hi=un.filter(x=>suit(x)===su&&rank(x)>r).length;
+   let others=un.filter(x=>suit(x)===su).length;
+   let pw=others===0?0.9:Math.pow((lo+0.3)/(lo+hi+0.3),Math.min(3,Math.max(1,others)));
+   let exp=1+(su===3?3:0)+(su===2&&qsOut&&!h.includes(QS)?5:0)+pts(c);
+   if(su===2&&h.includes(QS)&&c!==QS&&r>10)exp+=14;
+   if(su===3&&!s.broken)exp+=3;
+   let v=pw*exp+r*0.01+(others===0?2:0);
+   if(v<bv){bv=v;best=c}
+  }
+  return best;
+ }
+ let ls=suit(s.trick[0].card),f=L.filter(c=>suit(c)===ls);
+ let win=s.trick.filter(t=>suit(t.card)===ls).reduce((a,t)=>rank(t.card)>rank(a)?t.card:a,-1);
+ let tp=s.trick.reduce((a,t)=>a+pts(t.card),0),last=s.trick.length===3;
+ if(f.length){
+  let lower=f.filter(c=>rank(c)<rank(win));
+  if(lower.length){if(ls===2&&lower.includes(QS)&&rank(win)>10)return QS;return lower.reduce((a,c)=>rank(c)>rank(a)?c:a)}
+  let nq=f.filter(c=>c!==QS),pool=nq.length?nq:f;
+  if(last)return pool.reduce((a,c)=>rank(c)>rank(a)?c:a);
+  // forced to win, others still to play: if spades led and Q-spade unseen, losing high spade is risky
+  return pool.reduce((a,c)=>rank(c)<rank(a)?c:a);
+ }
+ // void: dump
+ let best=null,bv=-1e9,cnt=[0,0,0,0];h.forEach(c=>cnt[suit(c)]++);
+ for(let c of L){
+  let su=suit(c),r=rank(c),v;
+  if(c===QS)v=1000;
+  else if(su===2&&r>=11&&qsOut)v=900+r;
+  else if(su===3)v=500+r;
+  else v=r+(cnt[su]<=2?20-4*cnt[su]:0);
+  if(v>bv){bv=v;best=c}
+ }
+ return best;
+}
+// --- engine ---
+function playCard(s,seat,c){
+ s.hands[seat]=s.hands[seat].filter(x=>x!==c);s.trick.push({seat,card:c});s.played.push(c);s.recent.push({seat,card:c});
+ if(suit(c)===3)s.broken=true;
+ if(s.trick.length<4){s.turn=(seat+1)%4;return}
+ let ls=suit(s.trick[0].card),w=s.trick.filter(t=>suit(t.card)===ls).reduce((a,t)=>rank(t.card)>rank(a.card)?t:a);
+ let p=s.trick.reduce((a,t)=>a+pts(t.card),0);
+ s.taken[w.seat].push(...s.trick.map(t=>t.card));
+ s.lastTrick={cards:s.trick.slice(),winner:w.seat,pts:p};s.trick=[];s.tricks++;
+ if(s.tricks===13){endHand(s);return}
+ s.turn=w.seat;s.leader=w.seat;
+}
+function endHand(s){
+ let hp=s.taken.map(t=>t.reduce((a,c)=>a+pts(c),0));
+ let moon=hp.findIndex(x=>x===26);
+ if(moon>=0)hp=hp.map((x,i)=>i===moon?0:26);
+ s.handScores=hp;s.scores=s.scores.map((x,i)=>x+hp[i]);s.hist.push({hp,moon:moon>=0?moon:null});
+ if(Math.max(...s.scores)>=TARGET){
+  s.over=true;let m=Math.min(...s.scores);s.winner=s.scores.map((x,i)=>x===m?i:-1).filter(i=>i>=0);s.phase='over';return;
+ }
+ s.handNo++;s.prevHand={hp,moon:moon>=0?moon:null};
+ let keep={handNo:s.handNo,scores:s.scores,hist:s.hist,recent:s.recent,prevHand:s.prevHand,over:false,winner:null,handScores:null};
+ for(let k of Object.keys(s))delete s[k];Object.assign(s,keep);deal(s);
+}
+function doPass(s){
+ let d=s.passDir,sel=s.passSel,nh=s.hands.map(h=>h.slice());
+ for(let i=0;i<4;i++){let to=(i+d)%4;nh[i]=nh[i].filter(c=>!sel[i].includes(c))}
+ for(let i=0;i<4;i++){let to=(i+d)%4;nh[to].push(...sel[i])}
+ s.hands=nh.map(h=>h.sort((a,b)=>a-b));s.passed={dir:d,got:[0,1,2,3].map(i=>sel[(i+4-d)%4])};s.passSel=[null,null,null,null];startPlay(s);
+}
+function advance(s,bots){
+ for(let guard=0;guard<400&&!s.over;guard++){
+  if(s.phase==='pass'){
+   for(let i=0;i<4;i++)if(bots[i]&&!s.passSel[i])s.passSel[i]=botPass(s,i);
+   if(s.passSel.every(x=>x))doPass(s);else return;
+  }else{
+   if(!bots[s.turn])return;
+   playCard(s,s.turn,botPlay(s,s.turn));
+  }
+ }
+}
+function move(s,seat,m,bots){
+ if(s.over)throw Error('Game is over');
+ s.recent=[];
+ if(s.phase==='pass'){
+  if(m.t!=='pass')throw Error('Pick 3 cards to pass');
+  if(s.passSel[seat])throw Error('You already passed');
+  let c=Array.isArray(m.cards)?m.cards.map(Number):[];
+  if(c.length!==3||new Set(c).size!==3||!c.every(x=>s.hands[seat].includes(x)))throw Error('Pick 3 different cards from your hand');
+  s.passSel[seat]=c;
+ }else{
+  if(m.t!=='play')throw Error('Play a card');
+  if(s.turn!==seat)throw Error('Not your turn');
+  let c=Number(m.card);if(!legal(s,seat).includes(c))throw Error('You cannot play that card');
+  playCard(s,seat,c);
+ }
+ advance(s,bots);
+}
+function view(s,seat){
+ return{type:'hearts',phase:s.phase,over:s.over,winners:s.winner,handNo:s.handNo+1,target:TARGET,scores:s.scores,
+  hand:s.hands[seat].slice(),counts:s.hands.map(h=>h.length),turn:s.turn,
+  legal:s.phase==='play'&&s.turn===seat&&!s.over?legal(s,seat):[],
+  passDir:s.passDir,passed:s.phase==='pass'?!!s.passSel[seat]:false,passedBy:s.phase==='pass'?s.passSel.map(x=>!!x):null,
+  trick:s.trick,lastTrick:s.lastTrick,broken:s.broken,recent:s.recent,
+  handPts:s.taken?s.taken.map(t=>t.reduce((a,c)=>a+pts(c),0)):[0,0,0,0],
+  gotPass:s.passed&&s.tricks===0?s.passed.got[seat]:null,prevHand:s.prevHand||null,tricks:s.tricks,
+  seat}
+}
+function payouts(s,stake){
+ let order=s.scores.map((x,i)=>[x,i]).sort((a,b)=>a[0]-b[0]),prize=[3,1,0,0],out=[0,0,0,0];
+ for(let i=0;i<4;){let j=i;while(j<4&&order[j][0]===order[i][0])j++;let tot=0;for(let k=i;k<j;k++)tot+=prize[k];for(let k=i;k<j;k++)out[order[k][1]]=Math.floor(tot*stake/(j-i));i=j}
+ return out;
+}
+function waitingOn(s,bots){
+ if(s.over)return[];
+ if(s.phase==='pass'){let w=[];for(let i=0;i<4;i++)if(!bots[i]&&!s.passSel[i])w.push(i);return w.length===bots.filter(b=>!b).length?[]:w}
+ return bots[s.turn]?[]:[s.turn];
+}
+function forfeit(s,seat,stake,escrow,bots){
+ s.over=true;s.phase='over';s.forfeit=seat;
+ let out=[0,0,0,0];for(let i=0;i<4;i++)if(!bots[i]&&i!==seat)out[i]=3*stake;
+ s.winner=out.map((x,i)=>x?i:-1).filter(i=>i>=0);return out;
+}
+module.exports={create,move,view,payouts,waitingOn,forfeit,legal,botPlay,botPass,pts,TARGET,_t:{advance,playCard,deal}};
+
+return module.exports})();
 const {initializeApp,cert,getApps}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue}=require('firebase-admin/firestore');
-const GAMES={war:__m.war};
+const GAMES={war:__m.war,hearts:__m.hearts};
 
 
 const respond=(status,body)=>({statusCode:status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'},body:JSON.stringify(body)});
