@@ -96,5 +96,5 @@ export function installCards(ctx){
   if(v.game)BIND[v.type]?.();
   let to=$('#cg-timeout');if(to)to.onclick=timeoutClaim;
  }
- return {lobbyHTML,bindLobby,register(type,renderer,binder){R[type]=renderer;BIND[type]=binder;if(!AVAILABLE.includes(type))AVAILABLE.push(type)},helpers:{card,send,$,esc}};
+ return {rerender:()=>render(),lobbyHTML,bindLobby,register(type,renderer,binder){R[type]=renderer;BIND[type]=binder;if(!AVAILABLE.includes(type))AVAILABLE.push(type)},helpers:{card,send,$,esc}};
 }
